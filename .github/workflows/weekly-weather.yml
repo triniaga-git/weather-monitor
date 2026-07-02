@@ -1,0 +1,33 @@
+name: Weekly Weather Snapshot
+
+on:
+  schedule:
+    # 23:00 UTC setiap Minggu = 06:00 WIB Senin
+    - cron: '0 23 * * 0'
+  workflow_dispatch: {}   # tombol "Run workflow" manual, buat testing
+
+permissions:
+  contents: write   # wajib, biar job ini boleh commit & push balik ke repo
+
+jobs:
+  fetch-weather:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Ambil data cuaca mingguan
+        run: node scripts/fetch-weather.js
+
+      - name: Commit & push kalau ada perubahan
+        run: |
+          git config user.name "weather-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/weather-history.json
+          git diff --cached --quiet || git commit -m "chore: snapshot cuaca mingguan $(date -u +'%G-W%V')"
+          git push
