@@ -1,7 +1,7 @@
 name: Backfill Weather History (2000-now)
 
 on:
-  workflow_dispatch: {}   # manual saja -- ini one-time/occasional, bukan mingguan
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -16,15 +16,35 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
+
+      - name: Check file structure
+        run: |
+          echo "=== Checking directory structure ==="
+          ls -la
+          echo "=== Inside weather-dashboard ==="
+          ls -la weather-dashboard/ 2>/dev/null || echo "weather-dashboard folder not found"
+          echo "=== Inside scripts ==="
+          ls -la weather-dashboard/scripts/ 2>/dev/null || ls -la scripts/ 2>/dev/null || echo "scripts folder not found"
 
       - name: Backfill histori mingguan 2000-sekarang
-        run: node scripts/backfill-history.js
+        run: |
+          if [ -f "weather-dashboard/scripts/backfill-history.js" ]; then
+            echo "Running from weather-dashboard/scripts/"
+            cd weather-dashboard
+            node scripts/backfill-history.js
+          elif [ -f "scripts/backfill-history.js" ]; then
+            echo "Running from scripts/"
+            node scripts/backfill-history.js
+          else
+            echo "ERROR: backfill-history.js not found"
+            ls -la scripts/ 2>/dev/null || echo "No scripts folder"
+            exit 1
+          fi
 
       - name: Commit & push kalau ada perubahan
         run: |
           git config user.name "weather-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/weather-history.json
-          git diff --cached --quiet || git commit -m "chore: backfill histori mingguan 2000-sekarang"
-          git push
+          git add data/weather-history.json weather-dashboard/data/weather-history.json 2>/dev/null
+          git diff --cached --quiet || (git commit -m "chore: backfill histori mingguan 2000-sekarang" && git push) || echo "No changes to commit"
