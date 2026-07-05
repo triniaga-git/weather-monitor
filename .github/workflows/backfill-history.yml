@@ -1,0 +1,30 @@
+name: Backfill Weather History (2000-now)
+
+on:
+  workflow_dispatch: {}   # manual saja -- ini one-time/occasional, bukan mingguan
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Backfill histori mingguan 2000-sekarang
+        run: node scripts/backfill-history.js
+
+      - name: Commit & push kalau ada perubahan
+        run: |
+          git config user.name "weather-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add data/weather-history.json
+          git diff --cached --quiet || git commit -m "chore: backfill histori mingguan 2000-sekarang"
+          git push
