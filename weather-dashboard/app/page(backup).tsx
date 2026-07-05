@@ -4,8 +4,9 @@ import { useState, useCallback, useEffect } from "react";
 import {
   ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, ReferenceArea, ResponsiveContainer, LineChart, Line,
+  BarChart, Bar,
 } from "recharts";
-import { RefreshCw, Loader2, MapPin, TrendingUp, Radio } from "lucide-react";
+import { RefreshCw, Loader2, MapPin, TrendingUp, Radio, ChevronLeft, ChevronRight } from "lucide-react";
 
 // ---------- Design tokens (lihat DESIGN.md) ----------
 const INK = "#0B1220";
@@ -69,13 +70,13 @@ function MapTooltip({ active, payload }: any) {
   );
 }
 
-function HistoryTooltip({ active, payload }: any) {
+function HistoryTooltip({ active, payload, labelKey = "week", valueKey = "temp" }: any) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   return (
     <div style={{ background: PANEL, border: `1px solid ${HAIRLINE}`, borderRadius: 8, padding: "6px 10px", fontFamily: MONO_FONT, fontSize: 12, color: TEXT }}>
-      <div>{p.week}</div>
-      <div style={{ color: WARM }}>{p.temp.toFixed(1)}°C</div>
+      <div>{p[labelKey]}</div>
+      <div style={{ color: WARM }}>{p[valueKey].toFixed(1)}°C</div>
     </div>
   );
 }
@@ -93,11 +94,14 @@ function ZoneDot(props: any) {
   );
 }
 
-function Panel({ title, icon, children, style }: any) {
+function Panel({ title, icon, children, style, right }: any) {
   return (
     <div style={{ background: PANEL, border: `1px solid ${HAIRLINE}`, borderRadius: 12, padding: 18, ...style }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontSize: 13, color: MUTED, fontFamily: MONO_FONT, textTransform: "uppercase", letterSpacing: 0.5 }}>
-        {icon}{title}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: MUTED, fontFamily: MONO_FONT, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          {icon}{title}
+        </div>
+        {right}
       </div>
       {children}
     </div>
@@ -114,6 +118,28 @@ function StatCard({ label, value, sub, color }: any) {
   );
 }
 
+// Bikin bucket 5-tahunan mulai 2000, sampai tahun sekarang.
+function buildFiveYearBuckets(hist: any[]) {
+  if (!hist.length) return [];
+  const currentYear = new Date().getFullYear();
+  const buckets: { label: string; avg: number }[] = [];
+  let start = 2000;
+  while (start <= currentYear) {
+    const end = Math.min(start + 4, currentYear);
+    const isPartial = start + 4 > currentYear;
+    const entries = hist.filter((h) => {
+      const y = parseInt(h.week.slice(0, 4), 10);
+      return y >= start && y <= end;
+    });
+    if (entries.length) {
+      const avg = entries.reduce((s, e) => s + e.temp, 0) / entries.length;
+      buckets.push({ label: `${start}-${String(end).slice(2)}${isPartial ? "*" : ""}`, avg: Number(avg.toFixed(1)) });
+    }
+    start += 5;
+  }
+  return buckets;
+}
+
 export default function Home() {
   const [zonesData, setZonesData] = useState<Record<string, any>>({});
   const [history, setHistory] = useState<Record<string, any[]>>({});
@@ -121,6 +147,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [selectedZoneId, setSelectedZoneId] = useState("jakarta");
+  const [selectedYear, setSelectedYear] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -154,9 +181,17 @@ export default function Home() {
 
   const mapData = zoneTemps.map((z) => ({ x: z.lon, y: z.lat, temp: z.temp, wind: zonesData[z.id]?.windspeed || 0, id: z.id, name: z.full, shortName: z.shortName }));
   const selectedZone = ZONES.find((z) => z.id === selectedZoneId);
-  // Histori mingguan pakai field "temp", data live pakai "temperature" — dua sumber beda nama field
-  const selectedHistory = history[selectedZoneId] || [];
   const selectedCurrent = zonesData[selectedZoneId];
+
+  // Histori penuh (2000-sekarang, mingguan) untuk zona terpilih
+  const fullHistory: any[] = history[selectedZoneId] || [];
+  const availableYears = Array.from(new Set(fullHistory.map((h) => h.week.slice(0, 4)))).sort();
+  const effectiveYear = selectedYear && availableYears.includes(selectedYear) ? selectedYear : availableYears[availableYears.length - 1];
+  const yearWeekly = fullHistory
+    .filter((h) => h.week.startsWith(effectiveYear || ""))
+    .map((h) => ({ ...h, weekNum: h.week.split("-W")[1] }));
+  const yearIdx = effectiveYear ? availableYears.indexOf(effectiveYear) : -1;
+  const periodBuckets = buildFiveYearBuckets(fullHistory);
 
   const barPct = (t: number | null) => {
     if (t === null) return 0;
@@ -170,6 +205,9 @@ export default function Home() {
         @keyframes pulseDot { 0% { opacity: 1; } 50% { opacity: 0.25; } 100% { opacity: 1; } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         * { box-sizing: border-box; }
+        select.year-select { background: ${PANEL_2}; color: ${TEXT}; border: 1px solid ${HAIRLINE}; border-radius: 6px; font-family: ${MONO_FONT}; font-size: 13px; padding: 4px 8px; }
+        button.chev { background: ${PANEL_2}; border: 1px solid ${HAIRLINE}; color: ${TEXT}; width: 26px; height: 26px; border-radius: 6px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        button.chev:disabled { opacity: 0.35; cursor: default; }
       `}</style>
 
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
@@ -180,7 +218,7 @@ export default function Home() {
               <MapPin size={20} color={WARM} />
               <h1 style={{ fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 26, margin: 0 }}>Peta Cuaca Global</h1>
             </div>
-            <p style={{ color: MUTED, fontSize: 13, margin: "4px 0 0 28px" }}>9 zona representatif · pembacaan mingguan · analisa bertingkat</p>
+            <p style={{ color: MUTED, fontSize: 13, margin: "4px 0 0 28px" }}>9 zona representatif · histori mingguan 2000-sekarang · analisa bertingkat</p>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ fontSize: 12, color: MUTED, fontFamily: MONO_FONT, display: "flex", alignItems: "center", gap: 6 }}>
@@ -236,7 +274,7 @@ export default function Home() {
               <Scatter data={mapData} shape={(props: any) => <ZoneDot {...props} onSelect={setSelectedZoneId} selectedId={selectedZoneId} />} />
             </ScatterChart>
           </ResponsiveContainer>
-          <p style={{ fontSize: 11, color: MUTED, margin: "8px 0 0" }}>Warna titik = suhu (biru dingin → oranye panas). Klik titik untuk lihat tren mingguan.</p>
+          <p style={{ fontSize: 11, color: MUTED, margin: "8px 0 0" }}>Warna titik = suhu (biru dingin → oranye panas). Klik titik untuk lihat tren.</p>
         </Panel>
 
         {/* Tier 2: Hemisphere comparison */}
@@ -264,7 +302,7 @@ export default function Home() {
             return (
               <div
                 key={z.id}
-                onClick={() => setSelectedZoneId(z.id)}
+                onClick={() => { setSelectedZoneId(z.id); setSelectedYear(null); }}
                 style={{
                   background: PANEL, border: `1px solid ${isSelected ? WARM : HAIRLINE}`, borderRadius: 10,
                   padding: 14, cursor: "pointer", transition: "border-color 0.2s ease",
@@ -285,8 +323,26 @@ export default function Home() {
           })}
         </div>
 
-        {/* Detail / weekly history */}
-        <Panel title={`Tren Mingguan — ${selectedZone ? selectedZone.full : ""}`} style={{ marginTop: 20 }}>
+        {/* Tren mingguan dengan pemilih tahun */}
+        <Panel
+          title={`Tren Mingguan — ${selectedZone ? selectedZone.full : ""}`}
+          style={{ marginTop: 20 }}
+          right={
+            availableYears.length > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <button className="chev" disabled={yearIdx <= 0} onClick={() => setSelectedYear(availableYears[yearIdx - 1])}>
+                  <ChevronLeft size={14} />
+                </button>
+                <select className="year-select" value={effectiveYear || ""} onChange={(e) => setSelectedYear(e.target.value)}>
+                  {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+                <button className="chev" disabled={yearIdx >= availableYears.length - 1} onClick={() => setSelectedYear(availableYears[yearIdx + 1])}>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )
+          }
+        >
           {selectedCurrent && (
             <div style={{ display: "flex", gap: 24, marginBottom: 14, fontFamily: MONO_FONT, fontSize: 13 }}>
               <div><span style={{ color: MUTED }}>Saat ini: </span>{selectedCurrent.temperature.toFixed(1)}°C</div>
@@ -294,26 +350,45 @@ export default function Home() {
               <div><span style={{ color: MUTED }}>Kondisi: </span>{weatherDesc(selectedCurrent.weathercode)}</div>
             </div>
           )}
-          {selectedHistory.length >= 2 ? (
+          {yearWeekly.length >= 2 ? (
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={selectedHistory} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
+              <LineChart data={yearWeekly} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
                 <CartesianGrid stroke={HAIRLINE} strokeDasharray="2 4" opacity={0.5} />
-                <XAxis dataKey="week" stroke={MUTED} tick={{ fontSize: 10, fontFamily: MONO_FONT, fill: MUTED }} />
+                <XAxis dataKey="weekNum" stroke={MUTED} tick={{ fontSize: 10, fontFamily: MONO_FONT, fill: MUTED }} label={{ value: "Minggu ke-", position: "insideBottom", offset: -5, fill: MUTED, fontSize: 10 }} />
                 <YAxis stroke={MUTED} tick={{ fontSize: 10, fontFamily: MONO_FONT, fill: MUTED }} unit="°" />
-                <Tooltip content={<HistoryTooltip />} />
-                <Line type="monotone" dataKey="temp" stroke={WARM} strokeWidth={2} dot={{ r: 3, fill: WARM }} />
+                <Tooltip content={<HistoryTooltip labelKey="week" valueKey="temp" />} />
+                <Line type="monotone" dataKey="temp" stroke={WARM} strokeWidth={2} dot={{ r: 2, fill: WARM }} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
             <div style={{ fontSize: 12.5, color: MUTED, padding: "16px 0", lineHeight: 1.6 }}>
-              Baru {selectedHistory.length} titik data mingguan untuk zona ini dari GitHub Actions. Data akan bertambah tiap Senin
-              pagi WIB setelah workflow mingguan jalan.
+              Belum ada histori untuk zona ini — jalankan workflow <strong>"Backfill Weather History (2000-now)"</strong> secara manual sekali di tab Actions.
             </div>
           )}
         </Panel>
 
+        {/* Komparasi rata-rata per 5 tahun */}
+        <Panel title={`Komparasi Rata-rata per 5 Tahun — ${selectedZone ? selectedZone.full : ""}`} style={{ marginTop: 20 }}>
+          {periodBuckets.length > 0 ? (
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={periodBuckets} margin={{ top: 10, right: 10, bottom: 0, left: -10 }}>
+                <CartesianGrid stroke={HAIRLINE} strokeDasharray="2 4" opacity={0.5} />
+                <XAxis dataKey="label" stroke={MUTED} tick={{ fontSize: 10, fontFamily: MONO_FONT, fill: MUTED }} />
+                <YAxis stroke={MUTED} tick={{ fontSize: 10, fontFamily: MONO_FONT, fill: MUTED }} unit="°" />
+                <Tooltip content={<HistoryTooltip labelKey="label" valueKey="avg" />} />
+                <Bar dataKey="avg" fill={WARM} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div style={{ fontSize: 12.5, color: MUTED, padding: "16px 0", lineHeight: 1.6 }}>
+              Belum ada histori untuk dihitung — jalankan backfill dulu (lihat panel di atas).
+            </div>
+          )}
+          <p style={{ fontSize: 11, color: MUTED, margin: "8px 0 0" }}>* periode berjalan, belum genap 5 tahun</p>
+        </Panel>
+
         <p style={{ fontSize: 11, color: MUTED, marginTop: 24, lineHeight: 1.6 }}>
-          Data live dari Open-Meteo, histori mingguan dari GitHub Actions — keduanya digabung lewat satu endpoint <code>/api/weather</code>.
+          Data live dari Open-Meteo Forecast API, histori mingguan 2000-sekarang dari Open-Meteo Historical Weather API + GitHub Actions — digabung lewat satu endpoint <code>/api/weather</code>.
         </p>
       </div>
     </div>

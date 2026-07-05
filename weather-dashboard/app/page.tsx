@@ -8,7 +8,6 @@ import {
 } from "recharts";
 import { RefreshCw, Loader2, MapPin, TrendingUp, Radio, ChevronLeft, ChevronRight } from "lucide-react";
 
-// ---------- Design tokens (lihat DESIGN.md) ----------
 const INK = "#0B1220";
 const PANEL = "#131B2E";
 const PANEL_2 = "#0F1626";
@@ -21,7 +20,6 @@ const DISPLAY_FONT = "'Space Grotesk', sans-serif";
 const MONO_FONT = "'IBM Plex Mono', monospace";
 const BODY_FONT = "'Inter', sans-serif";
 
-// ---------- Zona (lihat SPEC.md) ----------
 const ZONES = [
   { id: "arctic", name: "Svalbard", full: "Svalbard, Norwegia", shortName: "SVB", lat: 78.22, lon: 15.63, hemisphere: "north", type: "Kutub" },
   { id: "ny", name: "New York", full: "New York, AS", shortName: "NYC", lat: 40.71, lon: -74.01, hemisphere: "north", type: "Sedang" },
@@ -76,7 +74,7 @@ function HistoryTooltip({ active, payload, labelKey = "week", valueKey = "temp" 
   return (
     <div style={{ background: PANEL, border: `1px solid ${HAIRLINE}`, borderRadius: 8, padding: "6px 10px", fontFamily: MONO_FONT, fontSize: 12, color: TEXT }}>
       <div>{p[labelKey]}</div>
-      <div style={{ color: WARM }}>{p[valueKey].toFixed(1)}°C</div>
+      <div style={{ color: WARM }}>{Number(p[valueKey]).toFixed(1)}°C</div>
     </div>
   );
 }
@@ -118,7 +116,6 @@ function StatCard({ label, value, sub, color }: any) {
   );
 }
 
-// Bikin bucket 5-tahunan mulai 2000, sampai tahun sekarang.
 function buildFiveYearBuckets(hist: any[]) {
   if (!hist.length) return [];
   const currentYear = new Date().getFullYear();
@@ -132,7 +129,7 @@ function buildFiveYearBuckets(hist: any[]) {
       return y >= start && y <= end;
     });
     if (entries.length) {
-      const avg = entries.reduce((s, e) => s + e.temp, 0) / entries.length;
+      const avg = entries.reduce((s: number, e: any) => s + e.temp, 0) / entries.length;
       buckets.push({ label: `${start}-${String(end).slice(2)}${isPartial ? "*" : ""}`, avg: Number(avg.toFixed(1)) });
     }
     start += 5;
@@ -142,6 +139,7 @@ function buildFiveYearBuckets(hist: any[]) {
 
 export default function Home() {
   const [zonesData, setZonesData] = useState<Record<string, any>>({});
+  const [weeklyData, setWeeklyData] = useState<Record<string, any>>({});
   const [history, setHistory] = useState<Record<string, any[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +155,7 @@ export default function Home() {
       if (!res.ok) throw new Error("bad response");
       const data = await res.json();
       setZonesData(data.zonesData || {});
+      setWeeklyData(data.weeklyData || {});
       setHistory(data.history || {});
       setLastUpdated(new Date(data.fetchedAt));
     } catch (e) {
@@ -166,9 +165,7 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   const zoneTemps = ZONES.map((z) => ({ ...z, temp: zonesData[z.id]?.temperature })).filter((z) => typeof z.temp === "number");
   const globalAvg = zoneTemps.length ? zoneTemps.reduce((s, z) => s + z.temp, 0) / zoneTemps.length : null;
@@ -182,21 +179,14 @@ export default function Home() {
   const mapData = zoneTemps.map((z) => ({ x: z.lon, y: z.lat, temp: z.temp, wind: zonesData[z.id]?.windspeed || 0, id: z.id, name: z.full, shortName: z.shortName }));
   const selectedZone = ZONES.find((z) => z.id === selectedZoneId);
   const selectedCurrent = zonesData[selectedZoneId];
-
-  // Histori penuh (2000-sekarang, mingguan) untuk zona terpilih
   const fullHistory: any[] = history[selectedZoneId] || [];
-  const availableYears = Array.from(new Set(fullHistory.map((h) => h.week.slice(0, 4)))).sort();
+  const availableYears = Array.from(new Set(fullHistory.map((h) => h.week.slice(0, 4)))).sort() as string[];
   const effectiveYear = selectedYear && availableYears.includes(selectedYear) ? selectedYear : availableYears[availableYears.length - 1];
-  const yearWeekly = fullHistory
-    .filter((h) => h.week.startsWith(effectiveYear || ""))
-    .map((h) => ({ ...h, weekNum: h.week.split("-W")[1] }));
+  const yearWeekly = fullHistory.filter((h) => h.week.startsWith(effectiveYear || "")).map((h) => ({ ...h, weekNum: h.week.split("-W")[1] }));
   const yearIdx = effectiveYear ? availableYears.indexOf(effectiveYear) : -1;
   const periodBuckets = buildFiveYearBuckets(fullHistory);
 
-  const barPct = (t: number | null) => {
-    if (t === null) return 0;
-    return Math.max(0, Math.min(100, ((t + 30) / 75) * 100));
-  };
+  const barPct = (t: number | null) => t === null ? 0 : Math.max(0, Math.min(100, ((t + 30) / 75) * 100));
 
   return (
     <div style={{ minHeight: "100vh", background: INK, color: TEXT, fontFamily: BODY_FONT, padding: "24px 16px 56px" }}>
@@ -211,6 +201,7 @@ export default function Home() {
       `}</style>
 
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
+
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16, marginBottom: 24 }}>
           <div>
@@ -222,33 +213,16 @@ export default function Home() {
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <div style={{ fontSize: 12, color: MUTED, fontFamily: MONO_FONT, display: "flex", alignItems: "center", gap: 6 }}>
-              {lastUpdated && (
-                <>
-                  <Radio size={12} color={WARM} style={{ animation: "pulseDot 2s ease-in-out infinite" }} />
-                  {lastUpdated.toLocaleDateString("id-ID", { day: "numeric", month: "short" })}, {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
-                </>
-              )}
+              {lastUpdated && (<><Radio size={12} color={WARM} style={{ animation: "pulseDot 2s ease-in-out infinite" }} />{lastUpdated.toLocaleDateString("id-ID", { day: "numeric", month: "short" })}, {lastUpdated.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</>)}
             </div>
-            <button
-              onClick={loadData}
-              disabled={loading}
-              style={{
-                display: "flex", alignItems: "center", gap: 6, background: PANEL, border: `1px solid ${HAIRLINE}`,
-                color: TEXT, padding: "8px 14px", borderRadius: 8, fontSize: 13, fontFamily: BODY_FONT,
-                cursor: loading ? "default" : "pointer", opacity: loading ? 0.6 : 1,
-              }}
-            >
+            <button onClick={loadData} disabled={loading} style={{ display: "flex", alignItems: "center", gap: 6, background: PANEL, border: `1px solid ${HAIRLINE}`, color: TEXT, padding: "8px 14px", borderRadius: 8, fontSize: 13, fontFamily: BODY_FONT, cursor: loading ? "default" : "pointer", opacity: loading ? 0.6 : 1 }}>
               {loading ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={14} />}
               Muat Ulang
             </button>
           </div>
         </div>
 
-        {error && (
-          <div style={{ background: "rgba(255,138,76,0.1)", border: `1px solid ${WARM}`, color: WARM, padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 20 }}>
-            {error}
-          </div>
-        )}
+        {error && <div style={{ background: "rgba(255,138,76,0.1)", border: `1px solid ${WARM}`, color: WARM, padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 20 }}>{error}</div>}
 
         {/* Tier 1: Global summary */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 24 }}>
@@ -293,31 +267,50 @@ export default function Home() {
           })}
         </Panel>
 
-        {/* Tier 3: Zone grid */}
+        {/* Tier 3: Zone grid dengan min/max */}
         <div style={{ marginTop: 24, marginBottom: 8, fontSize: 13, color: MUTED, fontFamily: MONO_FONT }}>ZONA · 9 TITIK JANGKAR</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
           {ZONES.map((z) => {
             const cw = zonesData[z.id];
+            const wk = weeklyData[z.id];
             const isSelected = z.id === selectedZoneId;
             return (
               <div
                 key={z.id}
                 onClick={() => { setSelectedZoneId(z.id); setSelectedYear(null); }}
-                style={{
-                  background: PANEL, border: `1px solid ${isSelected ? WARM : HAIRLINE}`, borderRadius: 10,
-                  padding: 14, cursor: "pointer", transition: "border-color 0.2s ease",
-                }}
+                style={{ background: PANEL, border: `1px solid ${isSelected ? WARM : HAIRLINE}`, borderRadius: 10, padding: 14, cursor: "pointer", transition: "border-color 0.2s ease" }}
               >
+                {/* Nama + badge tipe */}
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>{z.name}</div>
                   <span style={{ fontSize: 9.5, color: TYPE_COLOR[z.type], border: `1px solid ${TYPE_COLOR[z.type]}`, borderRadius: 4, padding: "1px 5px" }}>{z.type}</span>
                 </div>
+
+                {/* Suhu saat ini */}
                 <div style={{ fontFamily: MONO_FONT, fontSize: 24, marginTop: 8, color: cw ? tempColor(cw.temperature) : MUTED }}>
                   {cw ? `${cw.temperature.toFixed(1)}°` : loading ? "···" : "—"}
                 </div>
                 <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
                   {cw ? `${weatherDesc(cw.weathercode)} · ${cw.windspeed.toFixed(0)} km/j` : "menunggu data"}
                 </div>
+
+                {/* Min/Max 7 hari terakhir */}
+                {wk && (wk.weekMax !== null || wk.weekMin !== null) && (
+                  <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${HAIRLINE}` }}>
+                    {wk.weekMax !== null && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                        <span style={{ fontSize: 10.5, color: WARM, fontFamily: MONO_FONT }}>▲ {wk.weekMax.toFixed(1)}°</span>
+                        <span style={{ fontSize: 9, color: MUTED }}>{wk.weekMaxDate}</span>
+                      </div>
+                    )}
+                    {wk.weekMin !== null && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 2 }}>
+                        <span style={{ fontSize: 10.5, color: COLD, fontFamily: MONO_FONT }}>▼ {wk.weekMin.toFixed(1)}°</span>
+                        <span style={{ fontSize: 9, color: MUTED }}>{wk.weekMinDate}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -330,15 +323,11 @@ export default function Home() {
           right={
             availableYears.length > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <button className="chev" disabled={yearIdx <= 0} onClick={() => setSelectedYear(availableYears[yearIdx - 1])}>
-                  <ChevronLeft size={14} />
-                </button>
+                <button className="chev" disabled={yearIdx <= 0} onClick={() => setSelectedYear(availableYears[yearIdx - 1])}><ChevronLeft size={14} /></button>
                 <select className="year-select" value={effectiveYear || ""} onChange={(e) => setSelectedYear(e.target.value)}>
                   {availableYears.map((y) => <option key={y} value={y}>{y}</option>)}
                 </select>
-                <button className="chev" disabled={yearIdx >= availableYears.length - 1} onClick={() => setSelectedYear(availableYears[yearIdx + 1])}>
-                  <ChevronRight size={14} />
-                </button>
+                <button className="chev" disabled={yearIdx >= availableYears.length - 1} onClick={() => setSelectedYear(availableYears[yearIdx + 1])}><ChevronRight size={14} /></button>
               </div>
             )
           }
@@ -362,7 +351,7 @@ export default function Home() {
             </ResponsiveContainer>
           ) : (
             <div style={{ fontSize: 12.5, color: MUTED, padding: "16px 0", lineHeight: 1.6 }}>
-              Belum ada histori untuk zona ini — jalankan workflow <strong>"Backfill Weather History (2000-now)"</strong> secara manual sekali di tab Actions.
+              Belum ada histori untuk zona ini — jalankan workflow <strong>"Backfill Weather History (2000-now)"</strong> di tab Actions.
             </div>
           )}
         </Panel>
@@ -381,14 +370,14 @@ export default function Home() {
             </ResponsiveContainer>
           ) : (
             <div style={{ fontSize: 12.5, color: MUTED, padding: "16px 0", lineHeight: 1.6 }}>
-              Belum ada histori untuk dihitung — jalankan backfill dulu (lihat panel di atas).
+              Belum ada histori untuk dihitung — jalankan backfill dulu.
             </div>
           )}
           <p style={{ fontSize: 11, color: MUTED, margin: "8px 0 0" }}>* periode berjalan, belum genap 5 tahun</p>
         </Panel>
 
         <p style={{ fontSize: 11, color: MUTED, marginTop: 24, lineHeight: 1.6 }}>
-          Data live dari Open-Meteo Forecast API, histori mingguan 2000-sekarang dari Open-Meteo Historical Weather API + GitHub Actions — digabung lewat satu endpoint <code>/api/weather</code>.
+          Data live dari Open-Meteo Forecast API · histori mingguan 2000-sekarang dari Open-Meteo Historical Weather API + GitHub Actions · min/max 7 hari dari Open-Meteo daily forecast — digabung lewat satu endpoint <code>/api/weather</code>.
         </p>
       </div>
     </div>
