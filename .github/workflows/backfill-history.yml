@@ -18,33 +18,52 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check file structure
+      - name: Check structure
         run: |
-          echo "=== Checking directory structure ==="
+          echo "=== Root directory ==="
           ls -la
-          echo "=== Inside weather-dashboard ==="
-          ls -la weather-dashboard/ 2>/dev/null || echo "weather-dashboard folder not found"
-          echo "=== Inside scripts ==="
-          ls -la weather-dashboard/scripts/ 2>/dev/null || ls -la scripts/ 2>/dev/null || echo "scripts folder not found"
-
-      - name: Backfill histori mingguan 2000-sekarang
-        run: |
-          if [ -f "weather-dashboard/scripts/backfill-history.js" ]; then
-            echo "Running from weather-dashboard/scripts/"
-            cd weather-dashboard
-            node scripts/backfill-history.js
-          elif [ -f "scripts/backfill-history.js" ]; then
-            echo "Running from scripts/"
-            node scripts/backfill-history.js
+          echo ""
+          echo "=== Scripts folder ==="
+          ls -la scripts/ 2>/dev/null || echo "scripts folder not found"
+          echo ""
+          echo "=== Backfill script check ==="
+          if [ -f "scripts/backfill-history.js" ]; then
+            echo "✓ scripts/backfill-history.js found"
+            echo "First 20 lines:"
+            head -20 scripts/backfill-history.js
           else
-            echo "ERROR: backfill-history.js not found"
-            ls -la scripts/ 2>/dev/null || echo "No scripts folder"
+            echo "✗ scripts/backfill-history.js NOT found"
             exit 1
           fi
 
-      - name: Commit & push kalau ada perubahan
+      - name: Run backfill script with verbose output
+        run: |
+          echo "=== Running backfill script ==="
+          node scripts/backfill-history.js
+        continue-on-error: true
+
+      - name: Check result
+        run: |
+          echo "=== Check data folder ==="
+          ls -la data/ 2>/dev/null || echo "data folder not found"
+          echo ""
+          echo "=== Check weather-history.json ==="
+          if [ -f "data/weather-history.json" ]; then
+            echo "✓ data/weather-history.json created"
+            head -50 data/weather-history.json
+          else
+            echo "✗ data/weather-history.json not created"
+          fi
+
+      - name: Commit & push changes
         run: |
           git config user.name "weather-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/weather-history.json weather-dashboard/data/weather-history.json 2>/dev/null
-          git diff --cached --quiet || (git commit -m "chore: backfill histori mingguan 2000-sekarang" && git push) || echo "No changes to commit"
+          git add data/weather-history.json 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: backfill histori mingguan 2000-sekarang"
+            git push
+            echo "✓ Changes pushed"
+          else
+            echo "ℹ No changes to commit"
+          fi
