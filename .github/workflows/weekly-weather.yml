@@ -19,15 +19,39 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Ambil data cuaca mingguan
         run: node scripts/fetch-weather.js
+
+      - name: Cek cuaca ekstrem
+        id: check
+        run: |
+          node scripts/check-extreme.js
+          if [ -f "/tmp/alert-body.txt" ]; then
+            echo "has_alert=true" >> "$GITHUB_OUTPUT"
+            echo "recipients=$(cat /tmp/alert-recipients.txt)" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_alert=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Commit & push kalau ada perubahan
         run: |
           git config user.name "weather-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add data/weather-history.json
+          git add data/weather-history.json data/alert-state.json
           git diff --cached --quiet || git commit -m "chore: snapshot cuaca mingguan $(date -u +'%G-W%V')"
           git push
+
+      - name: Kirim email peringatan cuaca ekstrem
+        if: steps.check.outputs.has_alert == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.ALERT_EMAIL_USER }}
+          password: ${{ secrets.ALERT_EMAIL_PASS }}
+          subject: "Peringatan Cuaca Ekstrem - Global Weather Monitor"
+          to: ${{ steps.check.outputs.recipients }}
+          from: Global Weather Monitor
+          body: file:///tmp/alert-body.txt
