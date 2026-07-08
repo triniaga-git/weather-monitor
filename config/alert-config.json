@@ -1,0 +1,16 @@
+{
+  "recipients": [
+    "triniagainovasi@gmail.com"
+  ],
+  "absoluteThresholds": {
+    "maxTempC": 45,
+    "minTempC": -40,
+    "maxWindKmh": 100
+  },
+  "anomaly": {
+    "minHistorySamples": 5,
+    "stdDevMultiplier": 2,
+    "minDeltaC": 4
+  },
+  "cooldownWeeks": 0
+}
