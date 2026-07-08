@@ -1,1 +1,38 @@
-{}
+{
+  "arctic": {
+    "status": "normal",
+    "lastAlertWeek": null
+  },
+  "ny": {
+    "status": "normal",
+    "lastAlertWeek": null
+  },
+  "tokyo": {
+    "status": "normal",
+    "lastAlertWeek": null
+  },
+  "riyadh": {
+    "status": "extreme",
+    "lastAlertWeek": "2026-W28"
+  },
+  "jakarta": {
+    "status": "normal",
+    "lastAlertWeek": null
+  },
+  "galapagos": {
+    "status": "normal",
+    "lastAlertWeek": null
+  },
+  "sydney": {
+    "status": "normal",
+    "lastAlertWeek": null
+  },
+  "wellington": {
+    "status": "normal",
+    "lastAlertWeek": null
+  },
+  "mcmurdo": {
+    "status": "normal",
+    "lastAlertWeek": null
+  }
+}
