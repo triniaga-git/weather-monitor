@@ -4,10 +4,10 @@ on:
   schedule:
     # 23:00 UTC setiap Minggu = 06:00 WIB Senin
     - cron: '0 23 * * 0'
-  workflow_dispatch: {}   # tombol "Run workflow" manual, buat testing
+  workflow_dispatch: {}
 
 permissions:
-  contents: write   # wajib, biar job ini boleh commit & push balik ke repo
+  contents: write
 
 jobs:
   fetch-weather:
@@ -15,6 +15,9 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          # biar ambil histori penuh, bukan 1 commit saja
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -40,8 +43,13 @@ jobs:
           git config user.name "weather-bot"
           git config user.email "actions@users.noreply.github.com"
           git add data/weather-history.json data/alert-state.json
-          git diff --cached --quiet || git commit -m "chore: snapshot cuaca mingguan $(date -u +'%G-W%V')"
-          git push
+          if git diff --cached --quiet; then
+            echo "Tidak ada perubahan, skip commit"
+          else
+            git commit -m "chore: snapshot cuaca mingguan $(date -u +'%G-W%V')"
+            git pull --rebase origin master
+            git push origin master
+          fi
 
       - name: Kirim email peringatan cuaca ekstrem
         if: steps.check.outputs.has_alert == 'true'
@@ -51,7 +59,7 @@ jobs:
           server_port: 465
           username: ${{ secrets.ALERT_EMAIL_USER }}
           password: ${{ secrets.ALERT_EMAIL_PASS }}
-          subject: "Peringatan Cuaca Ekstrem - Global Weather Monitor"
+          subject: "⚠️ Peringatan Cuaca Ekstrem - Global Weather Monitor"
           to: ${{ steps.check.outputs.recipients }}
           from: Global Weather Monitor
           body: file:///tmp/alert-body.txt
