@@ -12,8 +12,8 @@
     "lastAlertWeek": null
   },
   "riyadh": {
-    "status": "extreme",
-    "lastAlertWeek": "2026-W30"
+    "status": "normal",
+    "lastAlertWeek": null
   },
   "jakarta": {
     "status": "normal",
@@ -32,7 +32,7 @@
     "lastAlertWeek": null
   },
   "mcmurdo": {
-    "status": "normal",
-    "lastAlertWeek": null
+    "status": "extreme",
+    "lastAlertWeek": "2026-W31"
   }
 }
