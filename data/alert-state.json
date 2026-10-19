@@ -1,7 +1,7 @@
 {
   "arctic": {
-    "status": "normal",
-    "lastAlertWeek": null
+    "status": "extreme",
+    "lastAlertWeek": "2026-W43"
   },
   "ny": {
     "status": "normal",
