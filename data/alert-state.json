@@ -8,16 +8,16 @@
     "lastAlertWeek": null
   },
   "tokyo": {
-    "status": "normal",
-    "lastAlertWeek": null
+    "status": "extreme",
+    "lastAlertWeek": "2026-W47"
   },
   "riyadh": {
-    "status": "normal",
-    "lastAlertWeek": null
+    "status": "extreme",
+    "lastAlertWeek": "2026-W47"
   },
   "jakarta": {
-    "status": "normal",
-    "lastAlertWeek": null
+    "status": "extreme",
+    "lastAlertWeek": "2026-W47"
   },
   "galapagos": {
     "status": "normal",
